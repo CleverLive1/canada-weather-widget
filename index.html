@@ -64,8 +64,9 @@
             <div class="text-base" id="feelsLike"></div>
           </div>
         </div>
-        <h3 class="mt-6 mb-2 text-lg font-bold">Horaire</h3>
+        <h3 class="mt-6 mb-2 text-lg font-bold">Prévisions horaires</h3>
         <div id="hourlyForecast" class="flex justify-between space-x-2 overflow-x-auto"></div>
+        <div class="mt-4 text-base">🌧 Précipitations totales prévues : <span id="rainTotal">--</span> mm</div>
       </div>
       <div class="fire-panel">
         <h3 class="text-xl font-bold mb-2">Danger d’incendie</h3>
@@ -106,6 +107,9 @@
 
       const hourlyContainer = document.getElementById('hourlyForecast');
       hourlyContainer.innerHTML = '';
+
+      let totalPrecip = 0;
+
       forecast.forecast.forecastday[0].hour.slice(15, 19).forEach(hour => {
         const hourBox = document.createElement('div');
         hourBox.className = 'hour-box';
@@ -118,7 +122,10 @@
           <div class="text-xs text-gray-200">${hour.precip_mm}mm</div>
         `;
         hourlyContainer.appendChild(hourBox);
+        totalPrecip += hour.precip_mm;
       });
+
+      document.getElementById('rainTotal').textContent = totalPrecip.toFixed(1);
 
       const temp = current.current.temp_c;
       const humidity = current.current.humidity;
@@ -132,6 +139,7 @@
     updateDateTime();
     setInterval(updateDateTime, 60000);
     fetchWeather(city);
+    setInterval(() => fetchWeather(city), 600000);
   </script>
 </body>
 </html>
