@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Widget Météo Canada</title>
+  <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+  <style>
+    body {
+      font-family: 'Arial', sans-serif;
+      background-color: #0a2540;
+    }
+    .weather-panel {
+      background: #1e293b;
+      border-radius: 1rem 1rem 0 0;
+      padding: 1.5rem;
+      color: white;
+    }
+    .hour-box {
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: 1rem;
+      padding: 0.75rem;
+      text-align: center;
+      width: 80px;
+    }
+    .fire-panel {
+      background: #1e293b;
+      padding: 1.5rem;
+      color: white;
+      border-radius: 0 0 1rem 1rem;
+    }
+    .fire-bar-container {
+      background: #0f172a;
+      border-radius: 9999px;
+      height: 1rem;
+      position: relative;
+      margin-top: 0.5rem;
+    }
+    .fire-bar-gradient {
+      background: linear-gradient(to right, #3b82f6, #22c55e, #eab308, #f97316, #dc2626);
+      height: 100%;
+      border-radius: 9999px;
+    }
+    .fire-indicator {
+      width: 12px;
+      height: 12px;
+      background-color: white;
+      border-radius: 50%;
+      position: absolute;
+      top: -2px;
+      transform: translateX(-50%);
+    }
+  </style>
+</head>
+<body class="text-white">
+  <div class="w-full max-w-md mx-auto">
+    <div id="weatherWidget" class="flex flex-col">
+      <div class="weather-panel">
+        <div class="flex items-center space-x-4">
+          <img id="currentIcon" src="" alt="icon" class="w-24 h-24">
+          <div>
+            <div class="text-6xl font-semibold" id="currentTemp">--°C</div>
+            <div class="text-xl" id="currentCondition">--</div>
+            <div class="text-base" id="feelsLike"></div>
+          </div>
+        </div>
+        <h3 class="mt-6 mb-2 text-lg font-bold">Horaire</h3>
+        <div id="hourlyForecast" class="flex justify-between space-x-2 overflow-x-auto"></div>
+      </div>
+      <div class="fire-panel">
+        <h3 class="text-xl font-bold mb-2">Danger d’incendie</h3>
+        <p class="text-sm mb-1">Prévision pour : <span id="regionName">--</span></p>
+        <div class="fire-bar-container">
+          <div class="fire-bar-gradient"></div>
+          <div class="fire-indicator" id="fireDot" style="left: 0%"></div>
+        </div>
+      </div>
+      <div class="bg-green-900 text-white flex justify-between px-6 py-6 text-2xl font-bold">
+        <span id="dateDisplay">--</span>
+        <span id="timeDisplay">--</span>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const apiKey = '1268607b599145f187e83750250406';
+    const city = 'Quebec';
+
+    function updateDateTime() {
+      const now = new Date();
+      document.getElementById('dateDisplay').textContent = now.toLocaleDateString('fr-CA', { day: 'numeric', month: 'long', year: 'numeric' });
+      document.getElementById('timeDisplay').textContent = now.toLocaleTimeString('fr-CA', { hour: '2-digit', minute: '2-digit', hour12: false });
+    }
+
+    async function fetchWeather(city) {
+      const currentRes = await fetch(`https://api.weatherapi.com/v1/current.json?key=${apiKey}&q=${city},Canada`);
+      const forecastRes = await fetch(`https://api.weatherapi.com/v1/forecast.json?key=${apiKey}&q=${city},Canada&hours=6`);
+      const current = await currentRes.json();
+      const forecast = await forecastRes.json();
+
+      document.getElementById('currentTemp').textContent = `${current.current.temp_c}°C`;
+      document.getElementById('currentCondition').textContent = current.current.condition.text;
+      document.getElementById('feelsLike').textContent = `T. ressentie ${current.current.feelslike_c} | Max: ${forecast.forecast.forecastday[0].day.maxtemp_c}° | Min: ${forecast.forecast.forecastday[0].day.mintemp_c}°`;
+      document.getElementById('currentIcon').src = `https:${current.current.condition.icon}`;
+      document.getElementById('regionName').textContent = current.location.name;
+
+      const hourlyContainer = document.getElementById('hourlyForecast');
+      hourlyContainer.innerHTML = '';
+      forecast.forecast.forecastday[0].hour.slice(15, 19).forEach(hour => {
+        const hourBox = document.createElement('div');
+        hourBox.className = 'hour-box';
+        hourBox.innerHTML = `
+          <div class="text-sm font-medium">${new Date(hour.time).getHours()}h</div>
+          <img src="https:${hour.condition.icon}" class="w-10 h-10 mx-auto my-1">
+          <div class="text-sm">${hour.temp_c}°</div>
+          <div class="text-xs text-gray-200">T. ress ${hour.feelslike_c}</div>
+          <div class="text-xs text-gray-200">🌧 ${hour.chance_of_rain}%</div>
+          <div class="text-xs text-gray-200">${hour.precip_mm}mm</div>
+        `;
+        hourlyContainer.appendChild(hourBox);
+      });
+
+      const temp = current.current.temp_c;
+      const humidity = current.current.humidity;
+      let firePercent = 0;
+      if (temp > 25 && humidity < 40) firePercent = 50;
+      if (temp > 30 && humidity < 30) firePercent = 85;
+      if (temp > 35 && humidity < 25) firePercent = 100;
+      document.getElementById('fireDot').style.left = `${firePercent}%`;
+    }
+
+    updateDateTime();
+    setInterval(updateDateTime, 60000);
+    fetchWeather(city);
+  </script>
+</body>
+</html>
