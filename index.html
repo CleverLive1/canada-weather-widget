@@ -100,34 +100,41 @@
 
     async function fetchWeather(city) {
       try {
-        const now = new Date();
+        const res = await fetch(`https://api.weatherapi.com/v1/forecast.json?key=${apiKey}&q=${city},Canada&days=2`);
+        const data = await res.json();
 
-        const currentRes = await fetch(`https://api.weatherapi.com/v1/current.json?key=${apiKey}&q=${city},Canada`);
-        const forecastRes = await fetch(`https://api.weatherapi.com/v1/forecast.json?key=${apiKey}&q=${city},Canada&hours=24`);
+        const current = data.current;
+        const forecast = data.forecast;
+        const tz = data.location.tz_id;
 
-        const current = await currentRes.json();
-        const forecast = await forecastRes.json();
+        // Convert current system time to Quebec local time string
+        const nowStr = new Intl.DateTimeFormat("en-CA", {
+          timeZone: tz,
+          year: "numeric",
+          month: "2-digit",
+          day: "2-digit",
+          hour: "2-digit",
+          minute: "2-digit",
+          second: "2-digit",
+          hour12: false
+        }).format(new Date());
 
-        // Update current weather
-        document.getElementById('currentTemp').textContent = `${current.current.temp_c}°C`;
-        document.getElementById('currentCondition').textContent = current.current.condition.text;
-        document.getElementById('feelsLike').textContent = `T. ressentie ${current.current.feelslike_c} | Max: ${forecast.forecast.forecastday[0].day.maxtemp_c}° | Min: ${forecast.forecast.forecastday[0].day.mintemp_c}°`;
-        document.getElementById('currentIcon').src = `https:${current.current.condition.icon}`;
-        document.getElementById('regionName').textContent = current.location.name;
+        const parts = nowStr.match(/(\d+)-(\d+)-(\d+), (\d+):(\d+):(\d+)/);
+        const nowQuebec = new Date(`${parts[1]}-${parts[2]}-${parts[3]}T${parts[4]}:${parts[5]}:${parts[6]}`);
+
+        // Update current weather info
+        document.getElementById('currentTemp').textContent = `${current.temp_c}°C`;
+        document.getElementById('currentCondition').textContent = current.condition.text;
+        document.getElementById('feelsLike').textContent = `T. ressentie ${current.feelslike_c} | Max: ${forecast.forecastday[0].day.maxtemp_c}° | Min: ${forecast.forecastday[0].day.mintemp_c}°`;
+        document.getElementById('currentIcon').src = `https:${current.condition.icon}`;
+        document.getElementById('regionName').textContent = data.location.name;
 
         const hourlyContainer = document.getElementById('hourlyForecast');
         hourlyContainer.innerHTML = '';
 
-        // Get next 4 hours starting from now
-        let nextHours = [];
-        for (const day of forecast.forecast.forecastday) {
-          for (const hour of day.hour) {
-            const hourDate = new Date(hour.time);
-            if (hourDate > now && nextHours.length < 4) {
-              nextHours.push(hour);
-            }
-          }
-        }
+        // Filter next 4 hours from now in local time
+        const allHours = forecast.forecastday.flatMap(day => day.hour);
+        const nextHours = allHours.filter(h => new Date(h.time) > nowQuebec).slice(0, 4);
 
         let totalPrecip = 0;
         nextHours.forEach(hour => {
@@ -148,25 +155,24 @@
         document.getElementById('rainTotal').textContent = totalPrecip.toFixed(1);
 
         // Fire indicator logic
-        const temp = current.current.temp_c;
-        const humidity = current.current.humidity;
+        const temp = current.temp_c;
+        const humidity = current.humidity;
         let firePercent = 0;
         if (temp > 25 && humidity < 40) firePercent = 50;
         if (temp > 30 && humidity < 30) firePercent = 85;
         if (temp > 35 && humidity < 25) firePercent = 100;
         document.getElementById('fireDot').style.left = `${firePercent}%`;
 
-      } catch (error) {
-        console.error('Erreur de chargement météo :', error);
+      } catch (err) {
+        console.error("Erreur de chargement météo :", err);
         document.getElementById('hourlyForecast').innerHTML = '<div class="text-red-400 text-sm">Erreur de chargement des données météo.</div>';
       }
     }
 
-    // Initial and interval updates
     updateDateTime();
     setInterval(updateDateTime, 60000);        // Update time every minute
     fetchWeather(city);
-    setInterval(() => fetchWeather(city), 600000); // Update weather every 10 mins
+    setInterval(() => fetchWeather(city), 600000); // Update weather every 10 minutes
   </script>
 </body>
 </html>
