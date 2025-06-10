@@ -22,6 +22,7 @@
       padding: 0.75rem;
       text-align: center;
       width: 80px;
+      flex-shrink: 0;
     }
     .fire-panel {
       background: #1e293b;
@@ -65,7 +66,7 @@
           </div>
         </div>
         <h3 class="mt-6 mb-2 text-lg font-bold">Prévisions horaires</h3>
-        <div id="hourlyForecast" class="flex justify-between space-x-2 overflow-x-auto"></div>
+        <div id="hourlyForecast" class="flex justify-start space-x-2 overflow-x-auto"></div>
         <div class="mt-4 text-base">🌧 Précipitations totales prévues : <span id="rainTotal">--</span> mm</div>
       </div>
       <div class="fire-panel">
@@ -89,57 +90,83 @@
 
     function updateDateTime() {
       const now = new Date();
-      document.getElementById('dateDisplay').textContent = now.toLocaleDateString('fr-CA', { day: 'numeric', month: 'long', year: 'numeric' });
-      document.getElementById('timeDisplay').textContent = now.toLocaleTimeString('fr-CA', { hour: '2-digit', minute: '2-digit', hour12: false });
+      document.getElementById('dateDisplay').textContent = now.toLocaleDateString('fr-CA', {
+        day: 'numeric', month: 'long', year: 'numeric'
+      });
+      document.getElementById('timeDisplay').textContent = now.toLocaleTimeString('fr-CA', {
+        hour: '2-digit', minute: '2-digit', hour12: false
+      });
     }
 
     async function fetchWeather(city) {
-      const currentRes = await fetch(`https://api.weatherapi.com/v1/current.json?key=${apiKey}&q=${city},Canada`);
-      const forecastRes = await fetch(`https://api.weatherapi.com/v1/forecast.json?key=${apiKey}&q=${city},Canada&hours=6`);
-      const current = await currentRes.json();
-      const forecast = await forecastRes.json();
+      try {
+        const now = new Date();
 
-      document.getElementById('currentTemp').textContent = `${current.current.temp_c}°C`;
-      document.getElementById('currentCondition').textContent = current.current.condition.text;
-      document.getElementById('feelsLike').textContent = `T. ressentie ${current.current.feelslike_c} | Max: ${forecast.forecast.forecastday[0].day.maxtemp_c}° | Min: ${forecast.forecast.forecastday[0].day.mintemp_c}°`;
-      document.getElementById('currentIcon').src = `https:${current.current.condition.icon}`;
-      document.getElementById('regionName').textContent = current.location.name;
+        const currentRes = await fetch(`https://api.weatherapi.com/v1/current.json?key=${apiKey}&q=${city},Canada`);
+        const forecastRes = await fetch(`https://api.weatherapi.com/v1/forecast.json?key=${apiKey}&q=${city},Canada&hours=24`);
 
-      const hourlyContainer = document.getElementById('hourlyForecast');
-      hourlyContainer.innerHTML = '';
+        const current = await currentRes.json();
+        const forecast = await forecastRes.json();
 
-      let totalPrecip = 0;
+        // Update current weather
+        document.getElementById('currentTemp').textContent = `${current.current.temp_c}°C`;
+        document.getElementById('currentCondition').textContent = current.current.condition.text;
+        document.getElementById('feelsLike').textContent = `T. ressentie ${current.current.feelslike_c} | Max: ${forecast.forecast.forecastday[0].day.maxtemp_c}° | Min: ${forecast.forecast.forecastday[0].day.mintemp_c}°`;
+        document.getElementById('currentIcon').src = `https:${current.current.condition.icon}`;
+        document.getElementById('regionName').textContent = current.location.name;
 
-      forecast.forecast.forecastday[0].hour.slice(15, 19).forEach(hour => {
-        const hourBox = document.createElement('div');
-        hourBox.className = 'hour-box';
-        hourBox.innerHTML = `
-          <div class="text-sm font-medium">${new Date(hour.time).getHours()}h</div>
-          <img src="https:${hour.condition.icon}" class="w-10 h-10 mx-auto my-1">
-          <div class="text-sm">${hour.temp_c}°</div>
-          <div class="text-xs text-gray-200">T. ress ${hour.feelslike_c}</div>
-          <div class="text-xs text-gray-200">🌧 ${hour.chance_of_rain}%</div>
-          <div class="text-xs text-gray-200">${hour.precip_mm}mm</div>
-        `;
-        hourlyContainer.appendChild(hourBox);
-        totalPrecip += hour.precip_mm;
-      });
+        const hourlyContainer = document.getElementById('hourlyForecast');
+        hourlyContainer.innerHTML = '';
 
-      document.getElementById('rainTotal').textContent = totalPrecip.toFixed(1);
+        // Get next 4 hours starting from now
+        let nextHours = [];
+        for (const day of forecast.forecast.forecastday) {
+          for (const hour of day.hour) {
+            const hourDate = new Date(hour.time);
+            if (hourDate > now && nextHours.length < 4) {
+              nextHours.push(hour);
+            }
+          }
+        }
 
-      const temp = current.current.temp_c;
-      const humidity = current.current.humidity;
-      let firePercent = 0;
-      if (temp > 25 && humidity < 40) firePercent = 50;
-      if (temp > 30 && humidity < 30) firePercent = 85;
-      if (temp > 35 && humidity < 25) firePercent = 100;
-      document.getElementById('fireDot').style.left = `${firePercent}%`;
+        let totalPrecip = 0;
+        nextHours.forEach(hour => {
+          const hourBox = document.createElement('div');
+          hourBox.className = 'hour-box';
+          hourBox.innerHTML = `
+            <div class="text-sm font-medium">${new Date(hour.time).getHours()}h</div>
+            <img src="https:${hour.condition.icon}" class="w-10 h-10 mx-auto my-1">
+            <div class="text-sm">${hour.temp_c}°</div>
+            <div class="text-xs text-gray-200">T. ress ${hour.feelslike_c}</div>
+            <div class="text-xs text-gray-200">🌧 ${hour.chance_of_rain}%</div>
+            <div class="text-xs text-gray-200">${hour.precip_mm}mm</div>
+          `;
+          hourlyContainer.appendChild(hourBox);
+          totalPrecip += hour.precip_mm;
+        });
+
+        document.getElementById('rainTotal').textContent = totalPrecip.toFixed(1);
+
+        // Fire indicator logic
+        const temp = current.current.temp_c;
+        const humidity = current.current.humidity;
+        let firePercent = 0;
+        if (temp > 25 && humidity < 40) firePercent = 50;
+        if (temp > 30 && humidity < 30) firePercent = 85;
+        if (temp > 35 && humidity < 25) firePercent = 100;
+        document.getElementById('fireDot').style.left = `${firePercent}%`;
+
+      } catch (error) {
+        console.error('Erreur de chargement météo :', error);
+        document.getElementById('hourlyForecast').innerHTML = '<div class="text-red-400 text-sm">Erreur de chargement des données météo.</div>';
+      }
     }
 
+    // Initial and interval updates
     updateDateTime();
-    setInterval(updateDateTime, 60000);
+    setInterval(updateDateTime, 60000);        // Update time every minute
     fetchWeather(city);
-    setInterval(() => fetchWeather(city), 600000);
+    setInterval(() => fetchWeather(city), 600000); // Update weather every 10 mins
   </script>
 </body>
 </html>
